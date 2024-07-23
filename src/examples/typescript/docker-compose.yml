@@ -7,8 +7,8 @@ services:
     build: .
     volumes:
       - ../../..:/code
-      - node_modules:/code/src/examples/javascript/node_modules/
-    working_dir: /code/src/examples/javascript
+      - node_modules:/code/src/examples/typescript/node_modules/
+    working_dir: /code/src/examples/typescript
     command: bash -l
 
 volumes:

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSCAL Validator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #response {
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .result-item {
+            margin-bottom: 20px;
+            border: 1px solid #d32f2f;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .result-item h3 {
+            margin-top: 0;
+            color: #d32f2f;
+        }
+        .error {
+            color: #d32f2f;
+        }
+        .location {
+            font-style: italic;
+            color: #1976d2;
+        }
+        .explanation {
+            margin-top: 10px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <h1>OSCAL Validator</h1>
+    <form id="uploadForm" enctype="multipart/form-data">
+        <input type="file" id="fileInput" name="file" accept=".json,.xml,.yaml,.yml" required>
+        <button type="submit">Validate</button>
+    </form>    <h2>Validation Results:</h2>
+    <div id="response"></div>
+
+    <script>
+        function renderSarifResponse(sarif) {
+            const responseElement = document.getElementById('response');
+            responseElement.innerHTML = '';
+
+            if (!sarif.runs || sarif.runs.length === 0) {
+                responseElement.textContent = 'No results found in SARIF response.';
+                return;
+            }
+
+            const run = sarif.runs[0];
+            if (!run.results || run.results.length === 0) {
+                responseElement.innerHTML = '<p style="color: green;">Validation passed. No issues found.</p>';
+                return;
+            }
+
+            const failures = run.results.filter(result => result.level === 'error');
+            
+            if (failures.length === 0) {
+                responseElement.innerHTML = '<p style="color: green;">Validation passed. No failures found.</p>';
+                return;
+            }
+
+            responseElement.innerHTML = `<p>Found ${failures.length} failure(s) in the OSCAL document:</p>`;
+
+            failures.forEach((result, index) => {
+                const resultElement = document.createElement('div');
+                resultElement.className = 'result-item';
+
+                const titleElement = document.createElement('h3');
+                titleElement.textContent = `Failure ${index + 1}: ${result.ruleId || 'Unknown Rule'}`;
+                result.ruleId&&resultElement.appendChild(titleElement);
+
+                if (result.message && result.message.text) {
+                    const messageElement = document.createElement('p');
+                    messageElement.className = 'error';
+                    messageElement.textContent = result.message.text;
+                    resultElement.appendChild(messageElement);
+                }
+
+                if (result.locations && result.locations.length > 0) {
+                    const location = result.locations[0];
+                    if (location.physicalLocation) {
+                        const locationElement = document.createElement('p');
+                        locationElement.className = 'location';
+                        const artifactLocation = location.physicalLocation.artifactLocation;
+                        const region = location.physicalLocation.region;
+                        let locationText = 'Location: ';
+                        if (artifactLocation && artifactLocation.uri) {
+                            locationText += artifactLocation.uri;
+                        }
+                        if (region) {
+                            locationText += ` (Line: ${region.startLine}, Column: ${region.startColumn})`;
+                        }
+                        locationElement.textContent = locationText;
+                        resultElement.appendChild(locationElement);
+                    }
+                }
+
+                const explanationElement = document.createElement('p');
+                explanationElement.className = 'explanation';
+                explanationElement.textContent = getExplanation(result);
+                resultElement.appendChild(explanationElement);
+
+                responseElement.appendChild(resultElement);
+            });
+
+//            responseElement.appendChild(explanationElement);
+        }
+
+        function getExplanation(result) {
+            // This function could be expanded with more specific explanations based on rule IDs
+            return "";
+        }
+document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fileInput = document.getElementById('fileInput');
+    const file = fileInput.files[0];
+    if (!file) {
+        alert('Please select a file');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const response = await fetch('/validate', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+            console.log(result);
+        renderSarifResponse(result);
+    } catch (error) {
+        console.error('Error:', error);
+        document.getElementById('response').textContent = 'Error: ' + error.message;
+    }
+});
+    </script>
+</body>
+</html>
