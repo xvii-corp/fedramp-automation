@@ -1,0 +1,9 @@
+# driver for the fedramp unit test
+test-case:
+  name: Test Valid Fedramp Version
+  description: Test that the SSP has a fedramp version.
+  content: ../content/ssp-fedramp-version-VALID.xml # the content to run
+  expectations: # check the constraint result
+  - constraint-id: fedramp-version-has-cardinality-of-one
+    result: pass
+
