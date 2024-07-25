@@ -6,8 +6,6 @@
         <last-modified>2024-02-01T13:57:28.355446-04:00</last-modified>
         <version>1.1</version>
         <oscal-version>1.1.2</oscal-version>
-        <prop ns="https://fedramp.gov/ns/oscal" name='fedramp-version' value="1.0.0"/>
-
         <role id="legal-officer">
             <title>Legal Officer</title>
         </role>
@@ -38,6 +36,7 @@
         <party uuid="96c362ee-a012-4e07-92f3-486ab303b0e7" type="organization">
             <name>Acme Corp</name>
         </party>
+        <prop ns="https://fedramp.gov/ns/oscal" name='fedramp-version' value="1.0.0"/>
     </metadata>
 <import-profile href="#b78aa3ec-915d-475b-8097-46813fae1825" />
     <system-characteristics>
