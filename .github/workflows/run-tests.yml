@@ -42,3 +42,8 @@ jobs:
         shell: bash
         run: |
           make build-validations
+      - name: Upload Cucumber Test results
+        uses: actions/upload-artifact@v2
+        with:
+          name: cucumber-test-results
+          path: ./reports/constraints.html

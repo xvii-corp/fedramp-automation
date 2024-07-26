@@ -1,5 +1,6 @@
 import { Given, Then, When, setDefaultTimeout } from "@cucumber/cucumber";
 import { expect } from "chai";
+import chalk from "chalk";
 import { readFileSync, readdirSync, unlinkSync, writeFileSync } from "fs";
 import { load } from "js-yaml";
 import { executeOscalCliCommand, validateFile, validateWithSarif } from "oscal";
@@ -131,10 +132,7 @@ async function processTestCase({ "test-case": testCase }: any) {
       ]),
     ]);
     if(typeof sarifResponse.runs[0].tool.driver.rules==='undefined'){
-      const [result,error]=await executeOscalCliCommand("validate",[processedContentPath,...metaschemaDocuments.flatMap((x) => [
-        "-c",
-        "./src/validations/constraints/" + x,
-      ])]);
+      console.error(chalk.red(sarifResponse.runs[0].results[0].message.text))
     }  
     if (processedContentPath != contentPath) {
       unlinkSync(processedContentPath);
@@ -183,20 +181,20 @@ async function checkConstraints(
   for (const expectation of constraints) {
     const constraint_id = expectation["constraint-id"];
     const expectedResult = expectation.result;
-    console.log("Checking status of constraint: "+constraint_id+" expecting:"+expectedResult);
+    console.log("Checking status of constraint: "+chalk.blue(constraint_id)+" expecting:"+expectedResult);
     const constraintMatch = rules.find((x) => x.name === constraint_id);
     const { id } = constraintMatch || { id: undefined };
     if (!id) {
-      console.log("Recieved: "+id);
+      console.log("Recieved: "+id );
       writeFileSync("./" + constraint_id + ".sarif.json", JSON.stringify(sarifOutput));
       console.log("SARIF results written to file: ./" + constraint_id + ".sarif.json");
       errors.push(`${constraint_id} rule not defined in SARIF results`);
       continue;
     }
     const constraintResult = results.find((x) => x.ruleId === id);
+    const constraintMatchesExpectation = constraintResult.kind == expectedResult;
     console.log("Recieved: "+constraintResult.kind);
 
-    const constraintMatchesExpectation = constraintResult.kind == expectedResult;
     constraintResults.push(constraintMatchesExpectation ? "pass" : "fail");
     if (!constraintMatchesExpectation) {
       errors.push(
