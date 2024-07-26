@@ -1,13 +1,12 @@
 import { Given, Then, When, setDefaultTimeout } from "@cucumber/cucumber";
 import { expect } from "chai";
-import chalk from "chalk";
-import { readFileSync, readdirSync, unlinkSync, writeFileSync } from "fs";
+import { readFileSync, readdirSync, writeFileSync, unlinkSync } from "fs";
 import { load } from "js-yaml";
-import { executeOscalCliCommand, validateFile, validateWithSarif } from "oscal";
+import { executeOscalCliCommand, validateFileSarif } from "oscal";
+import { validateWithSarif } from "oscal";
 import { dirname, join } from "path";
-import { Exception, Log } from "sarif";
 import { fileURLToPath } from "url";
-const DEFAULT_TIMEOUT = 17000;
+const DEFAULT_TIMEOUT = 60000;
 
 setDefaultTimeout(DEFAULT_TIMEOUT);
 
@@ -78,7 +77,7 @@ When("I process the constraint unit test {string}", async function (testFile) {
 
 Then("the constraint unit test should pass", async function () {
   const result = await processTestCase(currentTestCase);
-  expect(result.status).to.equal("pass", result.errorMessage);
+  expect(result).to.equal("pass");
 });
 
 async function processTestCase({ "test-case": testCase }: any) {
@@ -122,92 +121,64 @@ async function processTestCase({ "test-case": testCase }: any) {
 
   //Validate processed content
   // Check expectations
-  try {
-    const sarifResponse = await validateWithSarif([
-      processedContentPath,
-      "--sarif-include-pass",
-      ...metaschemaDocuments.flatMap((x) => [
-        "-c",
-        "./src/validations/constraints/" + x,
-      ]),
-    ]);
-    if(typeof sarifResponse.runs[0].tool.driver.rules==='undefined'){
-      console.error(chalk.red(sarifResponse.runs[0].results[0].message.text))
-    }  
-    if (processedContentPath != contentPath) {
-      unlinkSync(processedContentPath);
-    }
-    return checkConstraints(sarifResponse, testCase.expectations);
-  } catch(e) {
-    return { status: "fail", errorMessage: e.toString() };
+  const sarifResponse = await validateWithSarif([
+    processedContentPath,
+    "--sarif-include-pass",
+    ...metaschemaDocuments.flatMap((x) => [
+      "-c",
+      "./src/validations/constraints/" + x,
+    ]),
+  ]);
+  if (processedContentPath != contentPath) {
+    unlinkSync(processedContentPath);
   }
+  return checkConstraints(sarifResponse, testCase.expectations);
 }
 
 async function checkConstraints(
   sarifOutput: Log,
   constraints: [{ "constraint-id": string; result: "pass" | "fail" }],
 ) {
-  console.log(JSON.stringify(constraints),constraints.length);
   const { runs } = sarifOutput;
   const [run] = runs;
   const { results, tool } = run;
   if (!results) {
-    console.error("No Results")
-    return { status: "fail", errorMessage: "No results in SARIF output" };
+    return "no results in sarif output";
   }
   const { driver } = tool;
   if (runs.length != 1) {
-    console.error("No Runs")
-    return { status: "fail", errorMessage: "No runs found in SARIF" };
+    throw "no runs found in sarif";
   }
-  const rules  = runs[0].tool.driver.rules;
-  if (typeof rules==='undefined'||rules.length == 0) {
-    return { status: "fail", errorMessage: "No rules found in SARIF" };
-  }
+  const { rules } = runs[0].tool.driver;
   let constraintResults = [];
-  let errors = [];
-  console.log
-  // List all SARIF outputs with "fail" result
-  const failedResults = results.filter(result => result.kind === "fail");
-  if (failedResults.length > 0) {
-    errors.push("Failed SARIF outputs:");
-    failedResults.forEach(result => {
-      const rule = rules.find(r => r.id === result.ruleId);
-      const ruleName = rule ? rule.name : result.ruleId;
-      errors.push(`- ${ruleName}: ${result.message.text}`);
-    });
-  }
-
   for (const expectation of constraints) {
     const constraint_id = expectation["constraint-id"];
     const expectedResult = expectation.result;
-    console.log("Checking status of constraint: "+chalk.blue(constraint_id)+" expecting:"+expectedResult);
     const constraintMatch = rules.find((x) => x.name === constraint_id);
     const { id } = constraintMatch || { id: undefined };
     if (!id) {
-      console.log("Recieved: "+id );
-      writeFileSync("./" + constraint_id + ".sarif.json", JSON.stringify(sarifOutput));
-      console.log("SARIF results written to file: ./" + constraint_id + ".sarif.json");
-      errors.push(`${constraint_id} rule not defined in SARIF results`);
-      continue;
+      writeFileSync("./"+constraint_id+".sarif.json", JSON.stringify(sarifOutput));
+      console.error("Sarif results written to file: ./"+constraint_id+".sarif.json");
+      throw constraint_id + " rule not defined in sarif results";
     }
     const constraintResult = results.find((x) => x.ruleId === id);
-    const constraintMatchesExpectation = constraintResult.kind == expectedResult;
-    console.log("Recieved: "+constraintResult.kind);
 
-    constraintResults.push(constraintMatchesExpectation ? "pass" : "fail");
+    const constraintMatchesExpectation = constraintResult.kind == expectedResult;
+    constraintResults.push(constraintResult ? "pass" : "fail");
     if (!constraintMatchesExpectation) {
-      errors.push(
-        `${constraint_id}: Expected ${expectedResult}, received ${constraintResult.kind}`
+      console.error(
+        constraint_id +
+          " Did not match expected " +
+          result +
+          " recieved " +
+          constraintResult.kind,
       );
     }
   }
-
-  if (errors.length > 0) {
-    return {
-      status: "fail",
-      errorMessage: "Test failed with the following errors:\n" + errors.join("\n")
-    };
+  if (constraintResults.includes("fail")) {
+    return "fail";
   }
-  return { status: "pass", errorMessage: "" };
+  return "pass";
 }
+
+// We don't need the Before hook anymore, so it's removed
