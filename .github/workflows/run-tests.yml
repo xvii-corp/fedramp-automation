@@ -43,6 +43,7 @@ jobs:
         run: |
           make build-validations
       - name: Upload Cucumber Test results
+        if: always()
         uses: actions/upload-artifact@v2
         with:
           name: cucumber-test-results
